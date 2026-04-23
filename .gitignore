@@ -1,0 +1,24 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+
+## Banco local
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+## Rider
+.idea/
+
+## Visual Studio
+.vs/
+
+## Logs
+*.log
+
+## Sistema operacional
+.DS_Store
+Thumbs.db

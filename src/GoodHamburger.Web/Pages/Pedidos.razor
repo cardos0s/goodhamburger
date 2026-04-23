@@ -1,0 +1,280 @@
+@page "/pedidos"
+@inject GoodHamburger.Web.Services.GoodHamburgerApi Api
+@inject GoodHamburger.Web.Services.ToastService Toast
+@inject NavigationManager Nav
+@using GoodHamburger.Web.Models
+@using Microsoft.AspNetCore.WebUtilities
+
+<PageTitle>Pedidos — Good Hamburger</PageTitle>
+
+<div class="page-header">
+    <h1>Pedidos</h1>
+    <button class="btn-primary" @onclick="AbrirModal">+ Novo Pedido</button>
+</div>
+
+<div class="filter-chips">
+    <button class="chip active">Todos</button>
+    <button class="chip">Em andamento</button>
+    <button class="chip">Prontos</button>
+    <button class="chip">Entregues</button>
+</div>
+
+<div class="pedidos-table-wrapper">
+    @if (pedidos is null)
+    {
+        <p class="loading">Carregando...</p>
+    }
+    else if (pedidos.Count == 0)
+    {
+        <p class="empty-state">Nenhum pedido cadastrado. Crie o primeiro!</p>
+    }
+    else
+    {
+        <table class="pedidos-table">
+            <thead>
+                <tr>
+                    <th>Nº Pedido</th>
+                    <th>Status</th>
+                    <th>Itens</th>
+                    <th>Total</th>
+                    <th>Data/Hora</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var pedido in pedidos)
+                {
+                    <tr>
+                        <td><strong>#@pedido.Id.ToString("D4")</strong></td>
+                        <td><span class="status-badge status-em-andamento">🕐 Em andamento</span></td>
+                        <td>@pedido.Itens.Count @(pedido.Itens.Count == 1 ? "item" : "itens")</td>
+                        <td class="col-total">R$ @pedido.Total.ToString("F2")</td>
+                        <td class="col-data">@pedido.CriadoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>
+                            <button class="btn-icon" @onclick="() => VerDetalhes(pedido)" title="Ver detalhes">👁</button>
+                            <button class="btn-icon btn-icon-danger" @onclick="() => RemoverPedido(pedido.Id)" title="Excluir">🗑</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<div class="metrics-grid">
+    <div class="metric-card">
+        <div class="metric-label">Pedidos Hoje</div>
+        <div class="metric-value">@PedidosHoje</div>
+        <div class="metric-icon">🛍️</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Faturamento Hoje</div>
+        <div class="metric-value">R$ @FaturamentoHoje.ToString("F2")</div>
+        <div class="metric-icon">💰</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Ticket Médio</div>
+        <div class="metric-value">R$ @TicketMedio.ToString("F2")</div>
+        <div class="metric-icon">📈</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Em Andamento</div>
+        <div class="metric-value">@(pedidos?.Count ?? 0)</div>
+        <div class="metric-icon">⏳</div>
+    </div>
+</div>
+
+@if (mostrarModal)
+{
+    <div class="modal-backdrop" @onclick="FecharModal">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>Novo Pedido</h2>
+                <button class="btn-close" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (cardapio is null)
+            {
+                <p>Carregando cardápio...</p>
+            }
+            else
+            {
+                <div class="modal-body">
+                    @foreach (var categoria in new[] { CategoriaProduto.Sanduiche, CategoriaProduto.Batata, CategoriaProduto.Refrigerante })
+                    {
+                        <div class="modal-secao">
+                            <h3>@LabelCategoria(categoria)</h3>
+                            <div class="modal-opcoes">
+                                <label class="opcao-radio">
+                                    <input type="radio"
+                                           name="@categoria"
+                                           checked="@(!selecionados.ContainsKey(categoria))"
+                                           @onchange="() => RemoverCategoria(categoria)" />
+                                    <span>Nenhum</span>
+                                </label>
+                                @foreach (var produto in cardapio.Where(p => p.Categoria == categoria))
+                                {
+                                    var produtoLocal = produto;
+                                    <label class="opcao-radio">
+                                        <input type="radio"
+                                               name="@categoria"
+                                               checked="@(selecionados.GetValueOrDefault(categoria) == produtoLocal.Id)"
+                                               @onchange="() => SelecionarProduto(produtoLocal)" />
+                                        <span>@produtoLocal.Nome</span>
+                                        <span class="preco-tag">R$ @produtoLocal.Preco.ToString("F2")</span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-outline" @onclick="FecharModal">Cancelar</button>
+                    <button class="btn-primary"
+                            @onclick="CriarPedido"
+                            disabled="@(selecionados.Count == 0 || enviando)">
+                        @(enviando ? "Criando..." : "Criar Pedido")
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (pedidoDetalhe is not null)
+{
+    <div class="modal-backdrop" @onclick="() => pedidoDetalhe = null">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>Pedido #@pedidoDetalhe.Id.ToString("D4")</h2>
+                <button class="btn-close" @onclick="() => pedidoDetalhe = null">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <p class="muted">Criado em @pedidoDetalhe.CriadoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+
+                <h3>Itens</h3>
+                <ul class="itens-lista">
+                    @foreach (var item in pedidoDetalhe.Itens)
+                    {
+                        <li>
+                            <span>@item.NomeProduto</span>
+                            <span class="preco-tag">R$ @item.Preco.ToString("F2")</span>
+                        </li>
+                    }
+                </ul>
+
+                <div class="totais-detalhe">
+                    <div><span>Subtotal</span><strong>R$ @pedidoDetalhe.Subtotal.ToString("F2")</strong></div>
+                    <div><span>Desconto</span><strong class="desconto">- R$ @pedidoDetalhe.Desconto.ToString("F2")</strong></div>
+                    <div class="total"><span>Total</span><strong>R$ @pedidoDetalhe.Total.ToString("F2")</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<PedidoDto>? pedidos;
+    private IReadOnlyList<ProdutoDto>? cardapio;
+    private Dictionary<CategoriaProduto, int> selecionados = new();
+    private bool mostrarModal;
+    private bool enviando;
+    private PedidoDto? pedidoDetalhe;
+
+    private int PedidosHoje => pedidos?.Count(p => p.CriadoEm.Date == DateTime.UtcNow.Date) ?? 0;
+    private decimal FaturamentoHoje => pedidos?.Where(p => p.CriadoEm.Date == DateTime.UtcNow.Date).Sum(p => p.Total) ?? 0m;
+    private decimal TicketMedio => pedidos is null || pedidos.Count == 0 ? 0m : pedidos.Average(p => p.Total);
+
+    protected override async Task OnInitializedAsync()
+    {
+        cardapio = await Api.ObterCardapioAsync();
+        await CarregarPedidosAsync();
+
+        // Se veio ?produto=X da tela de cardápio, pré-seleciona e abre modal
+        var uri = new Uri(Nav.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("produto", out var produtoIdStr) &&
+            int.TryParse(produtoIdStr, out var produtoId) &&
+            cardapio is not null)
+        {
+            var produto = cardapio.FirstOrDefault(p => p.Id == produtoId);
+            if (produto is not null)
+            {
+                selecionados[produto.Categoria] = produto.Id;
+                mostrarModal = true;
+                Toast.Sucesso($"{produto.Nome} adicionado ao pedido!");
+            }
+        }
+    }
+
+    private async Task CarregarPedidosAsync()
+    {
+        pedidos = await Api.ListarPedidosAsync();
+    }
+
+    private void AbrirModal()
+    {
+        mostrarModal = true;
+    }
+
+    private void SelecionarProduto(ProdutoDto p)
+    {
+        // Se já tinha outra categoria igual selecionada, avisa o usuário
+        if (selecionados.TryGetValue(p.Categoria, out var idAnterior) && idAnterior != p.Id)
+        {
+            var anterior = cardapio?.FirstOrDefault(x => x.Id == idAnterior);
+            if (anterior is not null)
+                Toast.Aviso($"{anterior.Nome} foi substituído por {p.Nome}. Apenas um item por categoria.");
+        }
+        selecionados[p.Categoria] = p.Id;
+    }
+
+    private void RemoverCategoria(CategoriaProduto c) => selecionados.Remove(c);
+
+    private void VerDetalhes(PedidoDto p) => pedidoDetalhe = p;
+
+    private void FecharModal()
+    {
+        mostrarModal = false;
+        selecionados.Clear();
+    }
+
+    private async Task CriarPedido()
+    {
+        enviando = true;
+
+        var (pedido, erro) = await Api.CriarPedidoAsync(selecionados.Values.ToList());
+
+        if (pedido is not null)
+        {
+            Toast.Sucesso($"Pedido #{pedido.Id} criado! Total: R$ {pedido.Total:F2}");
+            FecharModal();
+            await CarregarPedidosAsync();
+        }
+        else
+        {
+            Toast.Erro(erro ?? "Erro ao criar pedido.");
+        }
+
+        enviando = false;
+    }
+
+    private async Task RemoverPedido(int id)
+    {
+        if (await Api.RemoverPedidoAsync(id))
+        {
+            Toast.Sucesso($"Pedido #{id} excluído.");
+            await CarregarPedidosAsync();
+        }
+    }
+
+    private static string LabelCategoria(CategoriaProduto c) => c switch
+    {
+        CategoriaProduto.Sanduiche => "🍔 Escolha seu hambúrguer",
+        CategoriaProduto.Batata => "🍟 Acompanhamento",
+        CategoriaProduto.Refrigerante => "🥤 Bebida",
+        _ => ""
+    };
+}

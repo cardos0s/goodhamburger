@@ -1,0 +1,46 @@
+@inject GoodHamburger.Web.Services.ToastService Toastt
+@using GoodHamburger.Web.Services
+@implements IDisposable
+
+<div class="toast-container">
+    @foreach (var msg in mensagens)
+    {
+        <div class="toast toast-@msg.Tipo.ToString().ToLower()" @key="msg.Id">
+            <span class="toast-icon">@IconePara(msg.Tipo)</span>
+            <span class="toast-texto">@msg.Texto</span>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly List<ToastMessage> mensagens = new();
+
+    protected override void OnInitialized()
+    {
+        Toastt.OnShow += HandleShow;
+    }
+
+    private async void HandleShow(ToastMessage msg)
+    {
+        mensagens.Add(msg);
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(3000);
+
+        mensagens.RemoveAll(m => m.Id == msg.Id);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string IconePara(ToastTipo tipo) => tipo switch
+    {
+        ToastTipo.Sucesso => "✓",
+        ToastTipo.Erro => "✕",
+        ToastTipo.Aviso => "⚠",
+        _ => ""
+    };
+
+    public void Dispose()
+    {
+        Toastt.OnShow -= HandleShow;
+    }
+}
