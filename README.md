@@ -9,6 +9,7 @@ Implementação do desafio técnico para desenvolvedor C#, com foco em Clean Arc
 
 O projeto segue Clean Architecture em quatro camadas. A regra de dependência aponta sempre para dentro: `Domain` não conhece ninguém; `API` conhece todos.
 
+```
 GoodHamburger/
 ├── src/
 │   ├── GoodHamburger.Domain/          # Entidades ricas, regras de negócio, exceções tipadas
@@ -17,7 +18,7 @@ GoodHamburger/
 │   ├── GoodHamburger.API/             # Controllers, middleware global, DI, Swagger
 │   └── GoodHamburger.Web/             # Blazor WebAssembly — consome a API
 └── tests/
-└── GoodHamburger.Tests/           # xUnit + AwesomeAssertions (24 testes unitários
+└── GoodHamburger.Tests/           # xUnit + AwesomeAssertions (24 testes unitários)
 
 
 ## 🚀 Como executar
