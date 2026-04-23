@@ -20,6 +20,7 @@ GoodHamburger/
 └── tests/
 └── GoodHamburger.Tests/           # xUnit + AwesomeAssertions (24 testes unitários)
 
+---
 
 ## 🚀 Como executar
 
